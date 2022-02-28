@@ -49,5 +49,5 @@ jobs:
           # Use Docker `latest` tag convention
           [ "$VERSION" == "main" ] && VERSION=latest
 
-          docker tag ${{ DOCKER_IMAGE }}:latest ${{ env.IMAGE_NAME }}:$VERSION
-          docker push ${{ DOCKER_IMAGE }}:$VERSION
+          docker tag $DOCKER_IMAGE:latest ${{ env.IMAGE_NAME }}:$VERSION
+          docker push $DOCKER_IMAGE:$VERSION
