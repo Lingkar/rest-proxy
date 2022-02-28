@@ -62,4 +62,4 @@ fi
 # Run the develop container with local source mounted in
 docker run --rm \
   "${docker_run_args[@]}" \
-  janleo500/rest-proxy-develop:latest "$@"
+  rest-proxy-develop:latest "$@"
