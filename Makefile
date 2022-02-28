@@ -27,7 +27,7 @@ build:
 build.develop:
 	docker buildx create --name builder
 	docker buildx use builder
-	docker buildx build -t ${IMG_NAME}-develop:latest --platform linux/amd64--target develop .
+	docker buildx build -t ${IMG_NAME}-develop:latest --platform linux/amd64 --target develop .
 
 fmt:
 	./scripts/fmt.sh
