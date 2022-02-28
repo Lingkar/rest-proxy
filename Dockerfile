@@ -20,6 +20,8 @@ FROM  registry.access.redhat.com/ubi8/ubi-minimal:8.4 AS develop
 ARG GOLANG_VERSION=1.16.6
 ARG PROTOC_VERSION=3.14.0
 
+ARG TARGETARCH
+
 USER root
 
 # Install build and dev tools
@@ -41,17 +43,27 @@ RUN microdnf install \
 # Install go
 ENV PATH /usr/local/go/bin:$PATH
 RUN set -eux; \
-    wget -qO go.tgz "https://golang.org/dl/go${GOLANG_VERSION}.linux-amd64.tar.gz"; \
+    wget -qO go.tgz "https://golang.org/dl/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz"; \
     sha256sum *go.tgz; \
     tar -C /usr/local -xzf go.tgz; \
     go version
 
 # Install protoc
-RUN set -eux; \
-    wget -qO protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"; \
-    sha256sum protoc.zip; \
-    unzip protoc.zip -x readme.txt -d /usr/local; \
-    protoc --version
+RUN if [ "$TARGETARCH" = "amd64" ] ; then \
+        set -eux; \
+        wget -qO protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"; \
+        sha256sum protoc.zip; \
+        unzip protoc.zip -x readme.txt -d /usr/local; \
+        protoc --version; \
+   elif [ "$TARGETARCH" = "arm64" ] ; then \
+        set -eux; \
+        wget -qO protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-aarch_64.zip"; \
+        sha256sum protoc.zip; \
+        unzip protoc.zip -x readme.txt -d /usr/local; \
+        protoc --version; \
+    else \
+    echo No targetarch was set; \
+  fi
 
 # Install go protoc plugins
 ENV PATH /root/go/bin:$PATH
@@ -81,7 +93,7 @@ LABEL image="build"
 COPY . ./
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o /go/bin/server ./proxy/
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o /go/bin/server ./proxy/
 
 ###############################################################################
 # Stage 3: Copy binary to create the smallest final runtime image

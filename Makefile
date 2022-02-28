@@ -16,11 +16,18 @@ IMG_NAME ?= kserve/rest-proxy
 
 all: build
 
+check:
+	docker buildx ls
+
 build:
-	docker build -t ${IMG_NAME}:latest --target runtime .
+	docker buildx create --name builder
+	docker buildx use builder
+	docker buildx build -t ${IMG_NAME}:latest --platform linux/amd64,linux/arm64 --target runtime .
 
 build.develop:
-	docker build -t ${IMG_NAME}-develop:latest --target develop .
+	docker buildx create --name builder
+	docker buildx use builder
+	docker buildx build -t ${IMG_NAME}-develop:latest --platform linux/amd64,linux/arm64 --target develop .
 
 fmt:
 	./scripts/fmt.sh
