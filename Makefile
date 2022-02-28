@@ -22,7 +22,7 @@ check:
 build:
 	docker buildx create --name builder
 	docker buildx use builder
-	docker buildx build -t ${IMG_NAME}:latest --platform linux/amd64 --target runtime .
+	docker buildx build -t ${IMG_NAME}:latest --platform linux/amd64,linux/arm64 --target runtime .
 
 build.develop:
 	docker build -t ${IMG_NAME}-develop:latest --build-arg TARGETARCH=amd64  --target develop .
