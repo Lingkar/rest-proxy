@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-IMG_NAME ?= kserve/rest-proxy
+IMG_NAME ?= janleo500/rest-proxy
 
 all: build
 
@@ -25,9 +25,7 @@ build:
 	docker buildx build -t ${IMG_NAME}:latest --platform linux/amd64 --target runtime .
 
 build.develop:
-	docker buildx create --name builder
-	docker buildx use builder
-	docker buildx build -t ${IMG_NAME}-develop:latest --platform linux/amd64 --target develop .
+	docker build -t ${IMG_NAME}-develop:latest --target develop .
 
 fmt:
 	./scripts/fmt.sh
