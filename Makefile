@@ -19,6 +19,7 @@ all: build
 check:
 	docker buildx ls
 
+# Currently not used, due to --load not working for multi-arch images
 build:
 	docker buildx create --name builder
 	docker buildx use builder

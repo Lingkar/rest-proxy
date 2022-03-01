@@ -26,7 +26,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
+      - name: Prepare
+        id: prep
+        run: |
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          
+          DOCKER_IMAGE=${{ secrets.DOCKER_USER }}/${GITHUB_REPOSITORY#*/}
+               
+          # Use Docker `latest` tag convention     
+          [ "$VERSION" == "main-thesis" ] && VERSION=latest
+          echo $VERSION
+          
+          TAGS="${DOCKER_IMAGE}:${VERSION}"
+          
+          # Set output parameters.
+          echo ::set-output name=tags::${TAGS}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
@@ -34,20 +49,19 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v1
-      - name: Build runtime image
-        run: make build
-      - name: Log in to Docker Hub
-        run: docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_ACCESS_TOKEN }}
-      - name: Push to Docker Hub
-        run: |
-          # Strip git ref prefix from version
-          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-          echo $VERSION
-
-          DOCKER_IMAGE=${{ secrets.DOCKER_USER }}/${GITHUB_REPOSITORY#*/}
-
-          # Use Docker `latest` tag convention
-          [ "$VERSION" == "main-thesis" ] && VERSION=latest
-
-          docker tag $DOCKER_IMAGE:latest $DOCKER_IMAGE:$VERSION
-          docker push $DOCKER_IMAGE:$VERSION
+      - name: Login to DockerHub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          target: runtime
+          tags: ${{ steps.prep.outputs.tags }}
