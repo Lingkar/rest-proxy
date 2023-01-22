@@ -19,97 +19,11 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
-	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	gw "github.com/kserve/rest-proxy/gen"
 )
-
-func restRequest(data string, shape string) string {
-	return `{
-	"id": "foo",
-	"inputs": [{
-		"name": "predict",
-		"shape": ` + shape + `,
-		"datatype": "FP32",
-		"data":` + data + `
-		}]
-	}`
-}
-
-var data1D = `
-	[0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0, 16.0, 8.0, 0.0,
-	0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0, 14.0, 0.0, 0.0, 0.0, 0.0,
-	2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0, 16.0, 6.0, 0.0, 0.0, 0.0, 0.0, 16.0,
-	16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0, 12.0, 1.0, 0.0, 0.0, 0.0, 1.0, 11.0, 14.0, 15.0,
-	3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0, 16.0, 8.0, 0.0, 0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0,
-	0.0, 5.0, 15.0, 11.0, 13.0, 14.0, 0.0, 0.0, 0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0,
-	0.0, 13.0, 16.0, 16.0, 6.0, 0.0, 0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0,
-	13.0, 12.0, 1.0, 0.0]
-`
-
-var data2D = `
-[
-	[0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0, 16.0, 8.0,
-	0.0, 0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0, 14.0, 0.0,
-	0.0, 0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0, 16.0, 6.0,
-	0.0, 0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0, 12.0, 1.0, 0.0],
-
-	[0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0, 16.0, 8.0,
-	0.0, 0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0, 14.0, 0.0,
-	0.0, 0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0, 16.0, 6.0,
-	0.0, 0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0, 12.0, 1.0, 0.0]
-]
-`
-
-var data3D = `
-[
-	[
-		[0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0, 16.0, 8.0, 0.0,
-			0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0, 14.0, 0.0, 0.0
-		],
-		[0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0, 16.0, 6.0, 0.0,
-			0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0, 12.0, 1.0, 0.0
-		]
-	],
-	[
-		[0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0, 16.0, 8.0, 0.0,
-			0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0, 14.0, 0.0, 0.0
-		],
-		[0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0, 16.0, 6.0, 0.0,
-			0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0, 12.0, 1.0, 0.0
-		]
-	]
-]
-`
-
-var data4D = `
-[
-	[
-		[
-			[0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0, 16.0, 8.0, 0.0],
-			[0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0, 14.0, 0.0, 0.0]
-		],
-		[
-			[0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0, 16.0, 6.0, 0.0],
-			[0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0, 12.0, 1.0, 0.0]
-		]
-	],
-	[
-		[
-			[0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0, 16.0, 8.0, 0.0],
-			[0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0, 14.0, 0.0, 0.0]
-		],
-		[
-			[0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0, 16.0, 6.0, 0.0],
-			[0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0, 12.0, 1.0, 0.0]
-		]
-	]
-]
-`
 
 func generateProtoBufResponse() *gw.ModelInferResponse {
 	expectedOutput := []*gw.ModelInferResponse_InferOutputTensor{{
@@ -125,53 +39,74 @@ func generateProtoBufResponse() *gw.ModelInferResponse {
 		ModelName: "example",
 		Id:        "foo",
 		Outputs:   expectedOutput,
-	}
-}
-
-var jsonResponse = `{"model_name":"example","id":"foo","outputs":[{"name":"predict","datatype":"INT64","shape":[2],"data":[8,8]}]}`
-
-func generateProtoBufRequest(shape []int64) *gw.ModelInferRequest {
-	var expectedInput = gw.ModelInferRequest_InferInputTensor{
-		Name:     "predict",
-		Datatype: "FP32",
-		Shape:    shape,
-		Contents: &gw.InferTensorContents{
-			Fp32Contents: []float32{0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0,
-				16.0, 8.0, 0.0, 0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0,
-				14.0, 0.0, 0.0, 0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0,
-				16.0, 6.0, 0.0, 0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0,
-				12.0, 1.0, 0.0, 0.0, 0.0, 1.0, 11.0, 14.0, 15.0, 3.0, 0.0, 0.0, 1.0, 13.0, 16.0, 12.0,
-				16.0, 8.0, 0.0, 0.0, 8.0, 16.0, 4.0, 6.0, 16.0, 5.0, 0.0, 0.0, 5.0, 15.0, 11.0, 13.0,
-				14.0, 0.0, 0.0, 0.0, 0.0, 2.0, 12.0, 16.0, 13.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.0, 16.0,
-				16.0, 6.0, 0.0, 0.0, 0.0, 0.0, 16.0, 16.0, 16.0, 7.0, 0.0, 0.0, 0.0, 0.0, 11.0, 13.0,
-				12.0, 1.0, 0.0},
+		Parameters: map[string]*gw.InferParameter{
+			"content_type": {ParameterChoice: &gw.InferParameter_StringParam{StringParam: "bar"}},
+			"headers":      {ParameterChoice: nil},
+			"int_param":    {ParameterChoice: &gw.InferParameter_Int64Param{Int64Param: 12345}},
+			"bool_param":   {ParameterChoice: &gw.InferParameter_BoolParam{BoolParam: false}},
 		},
 	}
-
-	var modelInferRequest = &gw.ModelInferRequest{
-		Id:     "foo",
-		Inputs: []*gw.ModelInferRequest_InferInputTensor{&expectedInput},
-	}
-	return modelInferRequest
 }
 
-func TestRESTRequest(t *testing.T) {
-	c := CustomJSONPb{}
-	inputDataArray := []string{data1D, data2D, data3D, data4D}
-	inputDataShapes := [][]int64{{2, 64}, {2, 64}, {2, 2, 32}, {2, 2, 2, 16}}
-	for k, data := range inputDataArray {
-		out := &gw.ModelInferRequest{}
-		buffer := &bytes.Buffer{}
-		buffer.Write([]byte(restRequest(data, strings.Join(strings.Split(fmt.Sprintln(inputDataShapes[k]), " "), ","))))
-		err := c.NewDecoder(buffer).Decode(out)
-		if err != nil {
-			t.Error(err)
-		}
-		if !reflect.DeepEqual(out, generateProtoBufRequest(inputDataShapes[k])) {
-			t.Errorf("REST request failed to decode for shape: %v", inputDataShapes[k])
-		}
+var jsonResponse = `{"model_name":"example","id":"foo","parameters":{"bool_param":false,"content_type":"bar","headers":null,"int_param":12345},` +
+	`"outputs":[{"name":"predict","datatype":"INT64","shape":[2],"data":[8,8]}]}`
+
+func generateProtoBufBytesResponse() *gw.ModelInferResponse {
+	expectedOutput := []*gw.ModelInferResponse_InferOutputTensor{{
+		Name:     "predict",
+		Datatype: "BYTES",
+		Shape:    []int64{2, 2},
+		Contents: &gw.InferTensorContents{
+			BytesContents: [][]byte{[]byte("String1"), []byte("String2"), []byte("String3"), []byte("String4")},
+		},
+	}}
+
+	return &gw.ModelInferResponse{
+		ModelName: "example",
+		Id:        "foo",
+		Outputs:   expectedOutput,
+		Parameters: map[string]*gw.InferParameter{
+			"content_type": {ParameterChoice: &gw.InferParameter_StringParam{StringParam: "bar"}},
+			"headers":      {ParameterChoice: nil},
+			"int_param":    {ParameterChoice: &gw.InferParameter_Int64Param{Int64Param: 12345}},
+			"bool_param":   {ParameterChoice: &gw.InferParameter_BoolParam{BoolParam: false}},
+		},
 	}
 }
+
+func generateProtoBufBytesResponseRawOutput() *gw.ModelInferResponse {
+	expectedOutput := []*gw.ModelInferResponse_InferOutputTensor{{
+		Name:     "predict",
+		Datatype: "BYTES",
+		Shape:    []int64{2, 2},
+	}}
+
+	seven := make([]byte, 4)
+	binary.LittleEndian.PutUint32(seven, 7)
+	rawBytes := append(seven, "String1"...)
+	rawBytes = append(rawBytes, seven...)
+	rawBytes = append(rawBytes, "String2"...)
+	rawBytes = append(rawBytes, seven...)
+	rawBytes = append(rawBytes, "String3"...)
+	rawBytes = append(rawBytes, seven...)
+	rawBytes = append(rawBytes, "String4"...)
+
+	return &gw.ModelInferResponse{
+		ModelName: "example",
+		Id:        "foo",
+		Outputs:   expectedOutput,
+		Parameters: map[string]*gw.InferParameter{
+			"content_type": {ParameterChoice: &gw.InferParameter_StringParam{StringParam: "bar"}},
+			"headers":      {ParameterChoice: nil},
+			"int_param":    {ParameterChoice: &gw.InferParameter_Int64Param{Int64Param: 12345}},
+			"bool_param":   {ParameterChoice: &gw.InferParameter_BoolParam{BoolParam: false}},
+		},
+		RawOutputContents: [][]byte{rawBytes},
+	}
+}
+
+var jsonBytesResponse = `{"model_name":"example","id":"foo","parameters":{"bool_param":false,"content_type":"bar","headers":null,"int_param":12345},` +
+	`"outputs":[{"name":"predict","datatype":"BYTES","shape":[2,2],"parameters":{"content_type":"base64"},"data":["U3RyaW5nMQ==","U3RyaW5nMg==","U3RyaW5nMw==","U3RyaW5nNA=="]}]}`
 
 func TestRESTResponse(t *testing.T) {
 	c := CustomJSONPb{}
@@ -181,6 +116,30 @@ func TestRESTResponse(t *testing.T) {
 		t.Error(err)
 	}
 	if d := cmp.Diff(string(marshal), jsonResponse); d != "" {
+		t.Errorf("diff :%s", d)
+	}
+}
+
+func TestBytesRESTResponse(t *testing.T) {
+	c := CustomJSONPb{}
+	v := generateProtoBufBytesResponse()
+	marshal, err := c.Marshal(v)
+	if err != nil {
+		t.Error(err)
+	}
+	if d := cmp.Diff(string(marshal), jsonBytesResponse); d != "" {
+		t.Errorf("diff :%s", d)
+	}
+}
+
+func TestBytesRESTResponseRawOutput(t *testing.T) {
+	c := CustomJSONPb{}
+	v := generateProtoBufBytesResponseRawOutput()
+	marshal, err := c.Marshal(v)
+	if err != nil {
+		t.Error(err)
+	}
+	if d := cmp.Diff(string(marshal), jsonBytesResponse); d != "" {
 		t.Errorf("diff :%s", d)
 	}
 }

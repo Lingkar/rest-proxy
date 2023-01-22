@@ -15,10 +15,10 @@
 ###############################################################################
 # Stage 1: Create the develop, test, and build environment
 ###############################################################################
-FROM  registry.access.redhat.com/ubi8/ubi-minimal:8.4 AS develop
+FROM  registry.access.redhat.com/ubi8/ubi-minimal:8.7 AS develop
 
-ARG GOLANG_VERSION=1.16.6
-ARG PROTOC_VERSION=3.14.0
+ARG GOLANG_VERSION=1.18.9
+ARG PROTOC_VERSION=21.12
 
 ARG TARGETARCH
 
@@ -65,6 +65,8 @@ RUN if [ "$TARGETARCH" = "amd64" ] ; then \
     echo No targetarch was set; \
   fi
 
+COPY go.mod go.sum ./
+
 # Install go protoc plugins
 ENV PATH /root/go/bin:$PATH
 RUN go get google.golang.org/protobuf/cmd/protoc-gen-go \
@@ -79,7 +81,6 @@ RUN git init && \
     rm -rf .git
 
 # Download dependiencies before copying the source so they will be cached
-COPY go.mod go.sum ./
 RUN go mod download
 
 ###############################################################################
@@ -101,6 +102,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o 
 FROM scratch AS runtime
 
 ARG USER=2000
+
+USER ${USER}
 
 COPY --from=build /go/bin/server /go/bin/server
 CMD ["/go/bin/server"]
